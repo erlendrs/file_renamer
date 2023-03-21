@@ -1,66 +1,143 @@
-import os
 import streamlit as st
+import os
 import pandas as pd
 
-def rename_files(file_mapping, folder):
-    # create a dictionary of old and new filenames
-    name_map = dict(zip(file_mapping['Old Name'], file_mapping['New Name']))
 
-    # get the list of files in the folder
-    files = os.listdir(folder)
-
-    # match the filenames to the files in the folder
-    for old_name, new_name in name_map.items():
-        if old_name is None or new_name is None:
+def replace_words(folder_path, old, new):
+    # Check if the folder path is valid
+    if not os.path.exists(folder_path):
+        st.write(f"The folder path '{folder_path}' does not exist!")
+        return
+    
+    # Get the list of files in the folder
+    file_list = os.listdir(folder_path)
+    
+    # Replace the old word with the new word in each filename
+    results = []
+    for old_file_name in file_list:
+        old_file_path = os.path.join(folder_path, old_file_name)
+        # Skip directories
+        if os.path.isdir(old_file_path):
             continue
-        if new_name in files:
-            st.write(f'Warning: {new_name} already exists and will be overwritten.')
+        new_file_name = old_file_name.replace(old, new)
+        if new_file_name != old_file_name:
+            new_file_path = os.path.join(folder_path, new_file_name)
+            os.rename(old_file_path, new_file_path)
+            results.append([old_file_name, new_file_name])
+    
+    return results
 
-    confirm = st.button("Rename Files")
-    if confirm:
-        st.write("Renaming files...")
-        for old_name, new_name in name_map.items():
-            if old_name is None or new_name is None:
-                continue
-            if new_name in files:
-                os.rename(os.path.join(folder, new_name), os.path.join(folder, f'{new_name}.old'))
-            os.rename(os.path.join(folder, old_name), os.path.join(folder, new_name))
-        st.write("Files renamed.")
 
-# define the Streamlit app
+
+def add_prefix(folder_path, prefix):
+    # Check if the folder path is valid
+    if not os.path.exists(folder_path):
+        st.write(f"The folder path '{folder_path}' does not exist!")
+        return
+    
+    # Check if the prefix is valid
+    if not prefix:
+        st.write("Please enter a prefix!")
+        return
+    
+    # Get the list of files in the folder
+    file_list = os.listdir(folder_path)
+    
+    # Add the prefix to the filename
+    results = []
+    for old_file_name in file_list:
+        old_file_path = os.path.join(folder_path, old_file_name)
+        # Skip directories
+        if os.path.isdir(old_file_path):
+            continue
+        file_name, file_ext = os.path.splitext(old_file_name)
+        new_file_name = prefix + file_name + file_ext
+        new_file_path = os.path.join(folder_path, new_file_name)
+        results.append([old_file_name, new_file_name])
+    
+    # Rename the files
+    for old_file_name, new_file_name in results:
+        old_file_path = os.path.join(folder_path, old_file_name)
+        new_file_path = os.path.join(folder_path, new_file_name)
+        os.rename(old_file_path, new_file_path)
+    
+    return results
+
+
+# Define a dictionary of functions
+functions = {
+    'Replace Words': replace_words,
+    'Add Prefix': add_prefix,
+}
+
+# Define the Streamlit app
 def app():
-    st.title("File Renamer")
+    # Define the UI elements
+    st.title('Rename files in folder')
+    folder_path = st.text_input('Enter a folder path:')
+    
+    # Check if the folder path is empty
+    if not folder_path:
+        st.write("Please enter a folder path!")
+        return
+    
+    # Check if the folder path is valid
+    if not os.path.exists(folder_path):
+        st.write(f"The folder path '{folder_path}' does not exist!")
+        return
+    
+    file_list = os.listdir(folder_path)
+    st.dataframe(file_list)
+    
+    function_name = st.selectbox('Select a function:', list(functions.keys()))
+    if function_name == 'Add Prefix':
+        prefix = st.text_input('Enter a prefix:')
+        function = functions[function_name]
+        
+        # Show a preview of the filename changes
+        file_list = os.listdir(folder_path)
+        preview = []
+        for old_file_name in file_list:
+            old_file_path = os.path.join(folder_path, old_file_name)
+            # Skip directories
+            if os.path.isdir(old_file_path):
+                continue
+            file_name, file_ext = os.path.splitext(old_file_name)
+            new_file_name = prefix + file_name + file_ext
+            preview.append([old_file_name, new_file_name])
+        st.write(pd.DataFrame(preview, columns=['Old Filename', 'New Filename']))
+        
+        if st.button('Execute'):
+            results = function(folder_path, prefix)
+            st.write(pd.DataFrame(results, columns=['Old Filename', 'New Filename']))
+            
+            # Get the updated list of files in the folder
+            file_list = os.listdir(folder_path)
+    
+    if function_name == 'Replace Words':
+        old = st.text_input('Enter the word to replace:', value='')
+        new = st.text_input('Enter the new word:', value='')
+        function = functions[function_name]
+        
+        # Show a preview of the filename changes
+        file_list = os.listdir(folder_path)
+        preview = []
+        for old_file_name in file_list:
+            old_file_path = os.path.join(folder_path, old_file_name)
+            # Skip directories
+            if os.path.isdir(old_file_path):
+                continue
+            new_file_name = old_file_name.replace(old, new)
+            preview.append([old_file_name, new_file_name])
+        st.write(pd.DataFrame(preview, columns=['Old Filename', 'New Filename']))
+        
+        if st.button('Execute'):
+            results = function(folder_path, old, new)
+            st.write(pd.DataFrame(results, columns=['Old Filename', 'New Filename']))
+    
+   
 
-    # define the input parameters
-    folder = st.text_input("Folder", value='./my_folder')
 
-    # get the list of files in the folder
-    files = os.listdir(folder)
-
-    # preview the files in the folder
-    st.write("Files in folder:")
-    st.write(files)
-
-    uploaded_file = st.file_uploader("Upload CSV file", type="csv")
-    if uploaded_file is not None:
-        file_mapping = pd.read_csv(uploaded_file, header=None)
-        file_mapping.columns = ['New Name']
-        file_mapping['Number'] = file_mapping['New Name'].str.extract(r'(\d+)', expand=False)
-        matching_files = []
-        for old_name in files:
-            for number in file_mapping['Number']:
-                if number in old_name:
-                    matching_files.append(old_name)
-                    break
-        matching_df = pd.DataFrame({'Old Name': matching_files})
-        matching_df['Number'] = matching_df['Old Name'].str.extract(r'(\d+)', expand=False)
-        file_mapping = file_mapping.merge(matching_df, on='Number', how='inner')
-        preview_df = file_mapping[['Old Name', 'New Name']].copy()
-        preview_df.rename(columns={'Old Name': 'Current Filename', 'New Name': 'New Filename'}, inplace=True)
-        st.write("Preview of matching filenames:")
-        st.write(preview_df)
-        rename_files(file_mapping, folder)
-
-# run the Streamlit app
+# Run the app
 if __name__ == '__main__':
     app()
